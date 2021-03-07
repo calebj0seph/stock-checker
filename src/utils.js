@@ -1,4 +1,5 @@
 const { stdout } = require('process');
+const { format } = require('date-fns');
 const AsyncLock = require('async-lock');
 
 const lock = new AsyncLock();
@@ -6,7 +7,7 @@ const lock = new AsyncLock();
 const writeAsync = (data) => new Promise((resolve) => stdout.write(data, resolve));
 
 const LOG_DATE_COLORS = {
-  info: '90',
+  info: '37',
   warning: '33',
   error: '31',
 };
@@ -28,9 +29,7 @@ async function writeProgressUnsafe(
   }
   if (start) {
     await writeAsync(
-      `\x1b[${LOG_DATE_COLORS[level]}m[` +
-        new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '') +
-        ']\x1b[0m '
+      `\x1b[${LOG_DATE_COLORS[level]}m[` + format(new Date(), 'yyyy-MM-dd HH:mm:ss') + ']\x1b[0m '
     );
     lastMessageEnded = false;
   }
