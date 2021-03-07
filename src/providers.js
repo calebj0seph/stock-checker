@@ -20,6 +20,23 @@ const PROVIDERS = {
         : inStockCheckResult();
     },
   },
+  MWAVE: {
+    name: 'Mwave',
+    baseUrl: 'https://www.mwave.com.au/',
+    parse: (html) => {
+      const root = parse(html);
+      const addToCart = root.querySelectorAll('.divAddCart .addToCarts');
+      if (addToCart.length === 0) {
+        return errorStockCheckResult("'Add to cart' section missing");
+      }
+      if (addToCart.length > 1) {
+        return errorStockCheckResult("Multiple 'Add to cart' sections found");
+      }
+      return addToCart[0].querySelectorAll('button').length === 0
+        ? outOfStockCheckResult()
+        : inStockCheckResult();
+    },
+  },
   PC_CASE_GEAR: {
     name: 'PC Case Gear',
     baseUrl: 'https://www.pccasegear.com/',

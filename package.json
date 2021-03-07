@@ -12,9 +12,7 @@
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
-    "abort-controller": "^3.0.0",
     "async-lock": "^1.2.8",
-    "node-fetch": "^2.6.1",
     "node-html-parser": "^3.0.3",
     "puppeteer": "^8.0.0",
     "tiny-async-pool": "^1.2.0",

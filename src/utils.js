@@ -34,7 +34,7 @@ async function writeProgressUnsafe(
     );
     lastMessageEnded = false;
   }
-  if (overwrite) {
+  if (overwrite && lastMessage.length > 0) {
     await writeAsync(`\x1b[${lastMessage.length}D\x1b[K`);
   }
   await writeAsync(`\x1b[${LOG_COLORS[level]}m${message}\x1b[0m`);

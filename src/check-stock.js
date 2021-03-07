@@ -1,39 +1,42 @@
 const asyncPool = require('tiny-async-pool');
-const AbortController = require('abort-controller');
-const fetch = require('node-fetch');
 
 const { writeProgress, errorStockCheckResult } = require('./utils');
-const { openChromeBrowser, getChromeHeadersForUrl } = require('./chrome');
+const { openChromeBrowser, openPage, navigateAndGetPageSource } = require('./chrome');
 const { PROVIDERS, getProductUrl } = require('./providers');
 
 const MAX_CONCURRENCY = 4;
-const FETCH_TIMEOUT = 3000;
 
-async function getProviderHeaders() {
+async function openTabsForProviders() {
   await writeProgress('[opening Chrome]');
   const browser = await openChromeBrowser();
 
   let i = 0;
-  const providerHeaders = {};
+  const providerPages = {};
   await asyncPool(MAX_CONCURRENCY, Object.keys(PROVIDERS), async (providerKey) => {
     await writeProgress(`[${i++}/${Object.keys(PROVIDERS).length}]`, { overwrite: true });
-    providerHeaders[providerKey] = await getChromeHeadersForUrl(
-      PROVIDERS[providerKey].baseUrl,
-      browser
-    );
+    providerPages[providerKey] = await openPage(browser);
   });
 
-  await writeProgress('[closing Chrome]', { overwrite: true });
-  await browser.close();
+  return { providerPages, browser };
+}
 
-  return providerHeaders;
+async function closeTabsForProviders(browser, providerPages) {
+  let i = 0;
+  await asyncPool(MAX_CONCURRENCY, Object.keys(PROVIDERS), async (providerKey) => {
+    await writeProgress(`[${i++}/${Object.keys(PROVIDERS).length}]`, { overwrite: true });
+    await providerPages[providerKey].close();
+  });
+
+  await writeProgress(`[closing Chrome]`, { overwrite: true });
+  await browser.close();
 }
 
 async function checkStock(products) {
-  await writeProgress('Refreshing provider HTTP headers... ', { start: true });
-  let providerHeaders = {};
+  await writeProgress('Opening Chrome tabs for each provider... ', { start: true });
+  let providerPages = null;
+  let browser = null;
   try {
-    providerHeaders = await getProviderHeaders();
+    ({ providerPages, browser } = await openTabsForProviders());
     await writeProgress('done!', { end: true, overwrite: true });
   } catch (e) {
     await writeProgress('failed!', { end: true, overwrite: true });
@@ -47,42 +50,42 @@ async function checkStock(products) {
   const productStock = new Map();
 
   try {
-    await asyncPool(MAX_CONCURRENCY, products, async (product) => {
-      await writeProgress(`[${i++}/${products.length}]`, { overwrite: true });
+    await asyncPool(MAX_CONCURRENCY, Object.keys(PROVIDERS), async (providerKey) => {
+      const productsForProvider = products.filter((product) => product.provider === providerKey);
 
-      const abortController = new AbortController();
-      const timeout = setTimeout(() => {
-        abortController.abort();
-      }, FETCH_TIMEOUT);
-      try {
-        const response = await fetch(getProductUrl(product), {
-          signal: abortController.signal,
-          headers: providerHeaders[product.provider],
-        });
-        if (!response.ok) {
-          productStock.set(
-            product,
-            errorStockCheckResult(`${response.status} ${response.statusText}`)
+      for (const product of productsForProvider) {
+        await writeProgress(`[${i++}/${products.length}]`, { overwrite: true });
+
+        try {
+          const response = await navigateAndGetPageSource(
+            getProductUrl(product),
+            providerPages[providerKey]
           );
-          return;
-        }
-        productStock.set(product, PROVIDERS[product.provider].parse(await response.text()));
-      } catch (e) {
-        if (e.name === 'AbortError') {
-          productStock.set(product, errorStockCheckResult('request timed out'));
-        } else {
+
+          if (!response.ok) {
+            productStock.set(
+              product,
+              errorStockCheckResult(`${response.status} ${response.statusText}`)
+            );
+            continue;
+          }
+          productStock.set(product, PROVIDERS[product.provider].parse(response.text));
+        } catch (e) {
           productStock.set(product, errorStockCheckResult(`[${e.name}] ${e.message}`));
         }
-      } finally {
-        clearTimeout(timeout);
       }
     });
+
+    await writeProgress('done!', { end: true, overwrite: true });
   } catch (e) {
     await writeProgress('failed!', { end: true, overwrite: true });
     throw e;
+  } finally {
+    await writeProgress('Closing Chrome tabs... ', { start: true });
+    await writeProgress('');
+    await closeTabsForProviders(browser, providerPages);
+    await writeProgress('done!', { end: true, overwrite: true });
   }
-
-  await writeProgress('done!', { end: true, overwrite: true });
 
   return productStock;
 }

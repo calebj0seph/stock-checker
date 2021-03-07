@@ -118,7 +118,9 @@ async function checkErrorsInLastHour() {
       recipients,
       admins.map((admin) => ({
         recipient: admin,
-        message: `⚠️ There have been ${errorsInLastHour} errors in the last hour checking stocks. Please investigate.`,
+        message: `⚠️ There ${errorsInLastHour === 1 ? 'has' : 'have'} been ${errorsInLastHour} ${
+          errorsInLastHour === 1 ? 'error' : 'errors'
+        } in the last hour checking stocks. Please investigate.`,
       }))
     );
     errorsInLastHour = 0;
