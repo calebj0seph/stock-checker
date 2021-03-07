@@ -54,6 +54,50 @@ const PROVIDERS = {
         : inStockCheckResult();
     },
   },
+  PLE: {
+    name: 'PLE Computers',
+    baseUrl: 'https://www.ple.com.au/',
+    parse: (html) => {
+      const root = parse(html);
+      const availabilityContainer = root.querySelectorAll('.availabilityContainerWrapper');
+      if (availabilityContainer.length === 0) {
+        return errorStockCheckResult('Availability container missing');
+      }
+      if (availabilityContainer.length > 1) {
+        return errorStockCheckResult('Multiple availability containers found');
+      }
+      if (availabilityContainer[0].querySelectorAll('.viewItemStoreAvailability').length === 0) {
+        return errorStockCheckResult('Availability information missing');
+      }
+      return availabilityContainer[0].querySelectorAll(
+        '.viewItemStoreAvailability:not(.viewItemDarkGrayText)'
+      ).length === 0
+        ? outOfStockCheckResult()
+        : inStockCheckResult();
+    },
+  },
+  UMART: {
+    name: 'Umart',
+    baseUrl: 'https://www.umart.com.au/',
+    parse: (html) => {
+      const root = parse(html);
+      const addToCartButton = root.querySelectorAll('form .goods_info .addtocart_btn:not(.lmn)');
+      if (addToCartButton.length > 1) {
+        return errorStockCheckResult("Multiple 'Add to cart' buttons found");
+      }
+      if (addToCartButton.length === 1) {
+        return inStockCheckResult();
+      }
+      const letMeKnowButton = root.querySelectorAll('form .goods_info .addtocart_btn.lmn');
+      if (letMeKnowButton.length > 1) {
+        return errorStockCheckResult("Multiple 'Let me know' buttons found");
+      }
+      if (letMeKnowButton.length === 1) {
+        return outOfStockCheckResult();
+      }
+      return errorStockCheckResult('Checkout buttons missing');
+    },
+  },
 };
 
 const getProductUrl = (product) =>
