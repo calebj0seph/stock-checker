@@ -1,0 +1,36 @@
+# The file contains a list of products to check the stock of. Each requires a
+# display name, a provider (the website of the product, see src/providers.js to
+# add support for more), a URL relative to the root of the site, and a list of
+# recipients to alert on stock changes.
+---
+- name: AMD Ryzen 9 5950X
+  provider: SCORPTEC
+  url: /product/CPU/AMD-Socket-AM4/86008-100-100000059WOF
+  watchers:
+    - recipient1
+
+- name: AMD Ryzen 9 5950X
+  provider: MWAVE
+  url: /product/amd-ryzen-9-5950x-16core-am4-340-ghz-unlocked-cpu-processor-ac39470
+  watchers:
+    - recipient1
+    - recipient2
+
+- name: AMD Ryzen 9 5950X
+  provider: PC_CASE_GEAR
+  url: /products/52256/amd-ryzen-9-5950x-processor
+  watchers:
+    - recipient2
+
+- name: AMD Ryzen 9 5950X
+  provider: PLE
+  url: /Products/643564/AMD-Ryzen-9-5950X-34Ghz-16-Core-32-Thread-AM4---No-HSF-Retail-Box
+  watchers:
+    - recipient2
+
+- name: AMD Ryzen 9 5950X
+  provider: UMART
+  url: /AMD-Ryzen-9-5950X-16-Core-AM4-4-9GHz-CPU-Processor_57287G.html
+  watchers:
+    - recipient1
+    - recipient2

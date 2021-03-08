@@ -1,0 +1,10 @@
+# This file defines the recipients who will receive SMS notifications. Each
+# recipient needs an ID (the key) and a phone number.
+---
+recipient1:
+  phone: '+61412345678'
+  # If isAdmin is set to true, this recipient will be sent an alert SMS if
+  # there have been any errors in the last hour.
+  isAdmin: true
+recipient2:
+  phone: '+61487654321'

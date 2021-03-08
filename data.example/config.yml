@@ -1,0 +1,20 @@
+# This file contains the global app configuration.
+---
+twilio:
+  # The SID of the messaging service to send messages from.
+  serviceSid: ''
+  # The account SID of the Twilio project.
+  accountSid: ''
+  # The SID of the API key to authenticate with (auth tokens aren't supported
+  # yet).
+  apiKeySid: ''
+  # The API key secret.
+  apiKeySecret: ''
+chrome:
+  # Path to your Chrome executable.
+  # e.g. C:\Program Files (x86)\Google\Chrome\Application\chrome.exe
+  # or /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+  path: ''
+  # Any arguments to open Chrome with.
+  # e.g. ['--profile-directory=Profile 1'] to use a different profile
+  args: []
