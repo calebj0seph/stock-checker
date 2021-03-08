@@ -2,7 +2,7 @@
 Node.js service that periodically checks if products from online stores are in
 stock. Sends notifications when items come back in stock via SMS using Twilio.
 
-# Prerequisites
+## Prerequisites
 * Node.js
 * npm
 * Google Chrome (or any Chromium-based browser)
@@ -14,12 +14,12 @@ stock. Sends notifications when items come back in stock via SMS using Twilio.
     indistinguishable from organic traffic.
 * A Twilio account
 
-# Getting started
+## Getting started
 1. Clone the repository.
 2. `npm install`
 3. Copy the `data.example` directory and rename it `data`.
-4. In the `data` directory, `config.yml`, `products.yml` and `recipients.yml`
-   as desired.
+4. In the `data` directory, configure `config.yml`, `products.yml` and
+   `recipients.yml` as desired.
    * If you need to add a product from an unsupported website, have a look at
      adding support for it in `src/providers.js`.
 5. `npm start`
@@ -30,6 +30,6 @@ stock. Sends notifications when items come back in stock via SMS using Twilio.
      last known stock state. This prevents sending duplicate messages when a
      product comes back in stock.
 
-# Licence
+## Licence
 `stock-checker` is provided under the terms of the MIT Licence. See the
 [LICENCE](LICENCE) file for details.
