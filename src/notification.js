@@ -6,6 +6,7 @@ const { loadConfig } = require('./file-system');
 
 const MAX_CONCURRENCY = 4;
 const LOOKUP_API_COST = 0.005;
+const MESSAGE_FETCH_RETRY_MS = (retry) => 2 ** retry * 250;
 
 const lock = new AsyncLock();
 
@@ -78,10 +79,10 @@ async function getNotificationCostUnsafe(recipients, recipientMessages) {
     }
   );
 
-  return (
-    lookupCost +
-    recipientMessages.reduce((sum, recipientMessage) => {
-      const lookupData = numberLookupData[recipients[recipientMessage.recipient].phone];
+  return {
+    lookupCost,
+    notificationCost: numbers.reduce((notificationCost, phone) => {
+      const lookupData = numberLookupData[phone];
       const price = notificationCostCache[lookupData.countryCode]
         .find(
           (costData) =>
@@ -89,9 +90,10 @@ async function getNotificationCostUnsafe(recipients, recipientMessages) {
             Number(costData.mnc) === Number(lookupData.mnc)
         )
         .prices.find((price) => price.number_type === 'mobile');
-      return sum + Number(price.current_price);
-    }, 0)
-  );
+      notificationCost[phone] = Number(price.current_price);
+      return notificationCost;
+    }, {}),
+  };
 }
 
 const getNotificationCost = (recipients, recipientMessages) =>
@@ -102,14 +104,39 @@ const getNotificationCost = (recipients, recipientMessages) =>
 async function notifyRecipients(recipients, recipientMessages) {
   await initialiseTwilio();
 
+  // Send all messages
+  const messages = [];
   for (const recipientMessage of recipientMessages) {
-    await twilioClient.messages.create({
+    const response = await twilioClient.messages.create({
       body: recipientMessage.message,
       from: serviceSid,
       to: recipients[recipientMessage.recipient].phone,
     });
+    messages.push({
+      sid: response.sid,
+      to: recipients[recipientMessage.recipient].phone,
+    });
   }
+
+  // Fetch the cost data
+  const { lookupCost, notificationCost } = await getNotificationCost(recipients, recipientMessages);
+
+  // Keep retrying until all messages are delivered and we have the total cost
+  let totalNotificationCost = 0;
+  for (let retry = 0; messages.length > 0; retry++) {
+    for (let i = 0; i < messages.length; i++) {
+      const response = await twilioClient.messages(messages[i].sid).fetch();
+      if (response.numSegments != null && Number(response.numSegments) > 0) {
+        totalNotificationCost += Number(response.numSegments) * notificationCost[messages[i].to];
+        messages.splice(i, 1);
+        i--;
+      }
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, MESSAGE_FETCH_RETRY_MS(retry)));
+  }
+
+  return lookupCost + totalNotificationCost;
 }
 
-exports.getNotificationCost = getNotificationCost;
 exports.notifyRecipients = notifyRecipients;

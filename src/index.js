@@ -2,7 +2,7 @@ const { writeProgress } = require('./utils');
 const { loadRecipients, loadProducts, saveStockMap, loadStockMap } = require('./file-system');
 const { checkStock } = require('./check-stock');
 const { PROVIDERS, getProductUrl } = require('./providers');
-const { getNotificationCost, notifyRecipients } = require('./notification');
+const { notifyRecipients } = require('./notification');
 
 const MIN_RECHECK_TIME = 3 * 60 * 1000;
 const MAX_RECHECK_TIME = 10 * 60 * 1000;
@@ -82,17 +82,9 @@ async function checkStockAndNotifyRecipients() {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  await writeProgress('Fetching SMS cost data... ', { start: true });
-  const totalMessageCost = await getNotificationCost(recipients, recipientMessages);
-  await writeProgress(`done!`, { end: true });
-  await writeProgress(
-    `Sending ${recipientMessages.length} messages totalling $${currencyFormatter.format(
-      totalMessageCost
-    )}... `,
-    { start: true }
-  );
-  await notifyRecipients(recipients, recipientMessages);
-  await writeProgress('done!', { end: true });
+  await writeProgress(`Sending ${recipientMessages.length} messages... `, { start: true });
+  const cost = await notifyRecipients(recipients, recipientMessages);
+  await writeProgress(`done! (total cost $${currencyFormatter.format(cost)})`, { end: true });
 
   // Schedule the next check
   const recheckTime = Math.floor(
