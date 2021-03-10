@@ -5,27 +5,29 @@ const { openChromeBrowser, openPage, navigateAndGetPageSource } = require('./chr
 const { PROVIDERS, getProductUrl } = require('./providers');
 
 const MAX_CONCURRENCY = 4;
+const MAX_RETRIES_PER_PRODUCT = 3;
+const RETRY_DELAY_MS = (retry) => 2 ** retry * 1500;
 
 async function openTabsForProviders() {
   await writeProgress('[opening Chrome]');
   const browser = await openChromeBrowser();
 
-  let i = 0;
   const providerPages = {};
-  await asyncPool(MAX_CONCURRENCY, Object.keys(PROVIDERS), async (providerKey) => {
-    await writeProgress(`[${i++}/${Object.keys(PROVIDERS).length}]`, { overwrite: true });
-    providerPages[providerKey] = await openPage(browser);
-  });
+  const providerKeys = Object.keys(PROVIDERS);
+  for (let i = 0; i < providerKeys.length; i++) {
+    await writeProgress(`[${i}/${providerKeys.length}]`, { overwrite: true });
+    providerPages[providerKeys[i]] = await openPage(browser);
+  }
 
   return { providerPages, browser };
 }
 
 async function closeTabsForProviders(browser, providerPages) {
-  let i = 0;
-  await asyncPool(MAX_CONCURRENCY, Object.keys(PROVIDERS), async (providerKey) => {
-    await writeProgress(`[${i++}/${Object.keys(PROVIDERS).length}]`, { overwrite: true });
-    await providerPages[providerKey].close();
-  });
+  const providerKeys = Object.keys(PROVIDERS);
+  for (let i = 0; i < providerKeys.length; i++) {
+    await writeProgress(`[${i}/${providerKeys.length}]`, { overwrite: true });
+    await providerPages[providerKeys[i]].close();
+  }
 
   await writeProgress(`[closing Chrome]`, { overwrite: true });
   await browser.close();
@@ -56,22 +58,28 @@ async function checkStock(products) {
       for (const product of productsForProvider) {
         await writeProgress(`[${i++}/${products.length}]`, { overwrite: true });
 
-        try {
-          const response = await navigateAndGetPageSource(
-            getProductUrl(product),
-            providerPages[providerKey]
-          );
-
-          if (!response.ok) {
-            productStock.set(
-              product,
-              errorStockCheckResult(`${response.status} ${response.statusText}`)
+        for (let retry = 0; retry < MAX_RETRIES_PER_PRODUCT; retry++) {
+          try {
+            const response = await navigateAndGetPageSource(
+              getProductUrl(product),
+              providerPages[providerKey]
             );
-            continue;
+
+            if (!response.ok) {
+              productStock.set(
+                product,
+                errorStockCheckResult(`${response.status} ${response.statusText}`)
+              );
+            } else {
+              productStock.set(product, PROVIDERS[product.provider].parse(response.text));
+              break;
+            }
+          } catch (e) {
+            productStock.set(product, errorStockCheckResult(`[${e.name}] ${e.message}`));
           }
-          productStock.set(product, PROVIDERS[product.provider].parse(response.text));
-        } catch (e) {
-          productStock.set(product, errorStockCheckResult(`[${e.name}] ${e.message}`));
+
+          // Wait before retrying
+          await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS(retry)));
         }
       }
     });
