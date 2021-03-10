@@ -7,6 +7,20 @@ const { notifyRecipients } = require('./notification');
 const MIN_RECHECK_TIME = 3 * 60 * 1000;
 const MAX_RECHECK_TIME = 10 * 60 * 1000;
 
+async function scheduleRecheck() {
+  const recheckTime = Math.floor(
+    Math.random() * (MAX_RECHECK_TIME - MIN_RECHECK_TIME) + MIN_RECHECK_TIME
+  );
+  await writeProgress(
+    `Scheduling stock recheck in ${Math.floor(recheckTime / 1000 / 60)}m ${
+      Math.floor(recheckTime / 1000) - Math.floor(recheckTime / 1000 / 60) * 60
+    }s`,
+    { start: true, end: true }
+  );
+
+  setTimeout(checkStockAndNotifyRecipients, recheckTime);
+}
+
 let errorsInLastHour = 0;
 async function checkStockAndNotifyRecipients() {
   const recipients = await loadRecipients();
@@ -72,6 +86,10 @@ async function checkStockAndNotifyRecipients() {
       end: true,
       level: 'error',
     });
+
+    // Schedule the next check
+    await scheduleRecheck();
+    return;
   }
 
   // Save last stock state
@@ -87,16 +105,7 @@ async function checkStockAndNotifyRecipients() {
   await writeProgress(`done! (total cost $${currencyFormatter.format(cost)})`, { end: true });
 
   // Schedule the next check
-  const recheckTime = Math.floor(
-    Math.random() * (MAX_RECHECK_TIME - MIN_RECHECK_TIME) + MIN_RECHECK_TIME
-  );
-  await writeProgress(
-    `Scheduling stock recheck in ${Math.floor(recheckTime / 1000 / 60)}m ${
-      Math.floor(recheckTime / 1000) - Math.floor(recheckTime / 1000 / 60) * 60
-    }s`,
-    { start: true, end: true }
-  );
-  setTimeout(checkStockAndNotifyRecipients, recheckTime);
+  await scheduleRecheck();
 }
 
 async function checkErrorsInLastHour() {

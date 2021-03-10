@@ -5,6 +5,7 @@ const { openChromeBrowser, openPage, navigateAndGetPageSource } = require('./chr
 const { PROVIDERS, getProductUrl } = require('./providers');
 
 const MAX_CONCURRENCY = 4;
+const NEW_PAGE_TIMEOUT_MS = 5000;
 const MAX_RETRIES_PER_PRODUCT = 3;
 const RETRY_DELAY_MS = (retry) => 2 ** retry * 1500;
 
@@ -16,7 +17,19 @@ async function openTabsForProviders() {
   const providerKeys = Object.keys(PROVIDERS);
   for (let i = 0; i < providerKeys.length; i++) {
     await writeProgress(`[${i}/${providerKeys.length}]`, { overwrite: true });
-    providerPages[providerKeys[i]] = await openPage(browser);
+
+    const timeoutPromise = new Promise((resolve) => setTimeout(resolve, NEW_PAGE_TIMEOUT_MS));
+    const pagePromise = openPage(browser);
+
+    const [completed, page] = await Promise.race(
+      [timeoutPromise, pagePromise].map((promise) => promise.then((result) => [promise, result]))
+    );
+    if (completed === timeoutPromise) {
+      await browser.close();
+      throw new Error(`timeout of ${NEW_PAGE_TIMEOUT_MS} exceeded opening new page`);
+    }
+
+    providerPages[providerKeys[i]] = page;
   }
 
   return { providerPages, browser };
