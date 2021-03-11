@@ -2,6 +2,7 @@ const twilio = require('twilio');
 const asyncPool = require('tiny-async-pool');
 const AsyncLock = require('async-lock');
 
+const { printProgress } = require('./logger');
 const { loadConfig } = require('./file-system');
 
 const MAX_CONCURRENCY = 4;
@@ -102,23 +103,32 @@ const getNotificationCost = (recipients, recipientMessages) =>
   );
 
 async function notifyRecipients(recipients, recipientMessages) {
+  const updateProgress = await printProgress(
+    `Sending ${recipientMessages.length} SMS ${
+      recipientMessages.length === 1 ? 'message' : 'messages'
+    }... `,
+    { end: false }
+  );
+  await updateProgress('[initialising Twilio]');
   await initialiseTwilio();
 
   // Send all messages
   const messages = [];
-  for (const recipientMessage of recipientMessages) {
+  for (let i = 0; i < recipientMessages.length; i++) {
+    await updateProgress(`[${i}/${recipientMessages.length}]`);
     const response = await twilioClient.messages.create({
-      body: recipientMessage.message,
+      body: recipientMessages[i].message,
       from: serviceSid,
-      to: recipients[recipientMessage.recipient].phone,
+      to: recipients[recipientMessages[i].recipient].phone,
     });
     messages.push({
       sid: response.sid,
-      to: recipients[recipientMessage.recipient].phone,
+      to: recipients[recipientMessages[i].recipient].phone,
     });
   }
 
   // Fetch the cost data
+  await updateProgress(`[fetching pricing data]`);
   const { lookupCost, notificationCost } = await getNotificationCost(recipients, recipientMessages);
 
   // Keep retrying until all messages are delivered and we have the total cost
@@ -136,7 +146,12 @@ async function notifyRecipients(recipients, recipientMessages) {
     await new Promise((resolve) => setTimeout(resolve, MESSAGE_FETCH_RETRY_MS(retry)));
   }
 
-  return lookupCost + totalNotificationCost;
+  const cost = lookupCost + totalNotificationCost;
+  const currencyFormatter = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  await updateProgress(`done! (total cost $${currencyFormatter.format(cost)})`, { end: true });
 }
 
 exports.notifyRecipients = notifyRecipients;

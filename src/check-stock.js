@@ -1,6 +1,7 @@
 const asyncPool = require('tiny-async-pool');
 
-const { writeProgress, errorStockCheckResult } = require('./utils');
+const { errorStockCheckResult } = require('./utils');
+const { printProgress } = require('./logger');
 const { openChromeBrowser, openPage, navigateAndGetPageSource } = require('./chrome');
 const { PROVIDERS, getProductUrl } = require('./providers');
 
@@ -9,15 +10,13 @@ const NEW_PAGE_TIMEOUT_MS = 5000;
 const MAX_RETRIES_PER_PRODUCT = 3;
 const RETRY_DELAY_MS = (retry) => 2 ** retry * 1500;
 
-async function openTabsForProviders() {
-  await writeProgress('[opening Chrome]');
+async function openTabsForProviders(updateProgress) {
+  await updateProgress('[opening Chrome]');
   const browser = await openChromeBrowser();
 
   const providerPages = {};
   const providerKeys = Object.keys(PROVIDERS);
   for (let i = 0; i < providerKeys.length; i++) {
-    await writeProgress(`[${i}/${providerKeys.length}]`, { overwrite: true });
-
     const timeoutPromise = new Promise((resolve) => setTimeout(resolve, NEW_PAGE_TIMEOUT_MS));
     const pagePromise = openPage(browser);
 
@@ -35,31 +34,27 @@ async function openTabsForProviders() {
   return { providerPages, browser };
 }
 
-async function closeTabsForProviders(browser, providerPages) {
+async function closeTabsForProviders(browser, providerPages, updateProgress) {
+  await updateProgress(`[closing Chrome]`);
+
   const providerKeys = Object.keys(PROVIDERS);
   for (let i = 0; i < providerKeys.length; i++) {
-    await writeProgress(`[${i}/${providerKeys.length}]`, { overwrite: true });
     await providerPages[providerKeys[i]].close();
   }
 
-  await writeProgress(`[closing Chrome]`, { overwrite: true });
   await browser.close();
 }
 
 async function checkStock(products) {
-  await writeProgress('Opening Chrome tabs for each provider... ', { start: true });
+  const updateProgress = await printProgress('Checking product stock... ', { end: false });
   let providerPages = null;
   let browser = null;
   try {
-    ({ providerPages, browser } = await openTabsForProviders());
-    await writeProgress('done!', { end: true, overwrite: true });
+    ({ providerPages, browser } = await openTabsForProviders(updateProgress));
   } catch (e) {
-    await writeProgress('failed!', { end: true, overwrite: true });
+    await updateProgress('failed! (could not open Chrome tabs)', { end: true });
     throw e;
   }
-
-  await writeProgress('Checking product stock... ', { start: true });
-  await writeProgress('');
 
   let i = 0;
   const productStock = new Map();
@@ -69,7 +64,7 @@ async function checkStock(products) {
       const productsForProvider = products.filter((product) => product.provider === providerKey);
 
       for (const product of productsForProvider) {
-        await writeProgress(`[${i++}/${products.length}]`, { overwrite: true });
+        await updateProgress(`[${i++}/${products.length}]`);
 
         for (let retry = 0; retry < MAX_RETRIES_PER_PRODUCT; retry++) {
           try {
@@ -96,17 +91,13 @@ async function checkStock(products) {
         }
       }
     });
-
-    await writeProgress('done!', { end: true, overwrite: true });
   } catch (e) {
-    await writeProgress('failed!', { end: true, overwrite: true });
+    await updateProgress('failed!', { end: true });
     throw e;
   } finally {
-    await writeProgress('Closing Chrome tabs... ', { start: true });
-    await writeProgress('');
-    await closeTabsForProviders(browser, providerPages);
-    await writeProgress('done!', { end: true, overwrite: true });
+    await closeTabsForProviders(browser, providerPages, updateProgress);
   }
+  await updateProgress('done!', { end: true });
 
   return productStock;
 }

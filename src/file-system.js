@@ -6,15 +6,15 @@ async function loadYaml(path) {
   return yaml.parse(yamlRaw);
 }
 
-function loadConfig(path) {
+function loadConfig() {
   return loadYaml('data/config.yml');
 }
 
-function loadRecipients(path) {
+function loadRecipients() {
   return loadYaml('data/recipients.yml');
 }
 
-function loadProducts(path) {
+function loadProducts() {
   return loadYaml('data/products.yml');
 }
 

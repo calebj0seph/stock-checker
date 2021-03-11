@@ -1,4 +1,4 @@
-const { writeProgress } = require('./utils');
+const { printProgress } = require('./logger');
 const { loadRecipients, loadProducts, saveStockMap, loadStockMap } = require('./file-system');
 const { checkStock } = require('./check-stock');
 const { PROVIDERS, getProductUrl } = require('./providers');
@@ -7,15 +7,43 @@ const { notifyRecipients } = require('./notification');
 const MIN_RECHECK_TIME = 3 * 60 * 1000;
 const MAX_RECHECK_TIME = 10 * 60 * 1000;
 
+async function displayStockStatus(stocks) {
+  let inStockCount = 0;
+  let outOfStockCount = 0;
+  let errorCount = 0;
+  for (const stock of stocks.values()) {
+    if (stock.status === 'IN_STOCK') {
+      inStockCount++;
+    } else if (stock.status === 'OUT_OF_STOCK') {
+      outOfStockCount++;
+    } else if (stock.status === 'ERROR') {
+      errorCount++;
+    }
+  }
+
+  const updateProgress = await printProgress('Current product stock status: ', { end: false });
+  if (errorCount > 0) {
+    await updateProgress(
+      `${inStockCount} in stock, ${outOfStockCount} out of stock and ${errorCount} ${
+        errorCount === 1 ? 'error' : 'errors'
+      }`,
+      { end: true }
+    );
+  } else {
+    await updateProgress(`${inStockCount} in stock and ${outOfStockCount} out of stock`, {
+      end: true,
+    });
+  }
+}
+
 async function scheduleRecheck() {
   const recheckTime = Math.floor(
     Math.random() * (MAX_RECHECK_TIME - MIN_RECHECK_TIME) + MIN_RECHECK_TIME
   );
-  await writeProgress(
+  await printProgress(
     `Scheduling stock recheck in ${Math.floor(recheckTime / 1000 / 60)}m ${
       Math.floor(recheckTime / 1000) - Math.floor(recheckTime / 1000 / 60) * 60
-    }s`,
-    { start: true, end: true }
+    }s`
   );
 
   setTimeout(checkStockAndNotifyRecipients, recheckTime);
@@ -33,20 +61,20 @@ async function checkStockAndNotifyRecipients() {
     for (const product of products) {
       if (!stocks.has(product)) {
         errorsInLastHour++;
-        await writeProgress(
+        await printProgress(
           `Missing product '${product.name}' from provider ${product.provider} from call to checkStock()`,
-          { start: true, end: true, level: 'error' }
+          { level: 'error' }
         );
         continue;
       }
       const stock = stocks.get(product);
       if (stock.status === 'ERROR') {
         errorsInLastHour++;
-        await writeProgress(
+        await printProgress(
           `Failed to check stock for product '${product.name}' from provider ${product.provider}${
             stock.message !== undefined ? ': ' + stock.message : ''
           }`,
-          { start: true, end: true, level: 'warning' }
+          { level: 'warning' }
         );
         continue;
       }
@@ -79,13 +107,11 @@ async function checkStockAndNotifyRecipients() {
       }
       lastStockResult.set(product, stock);
     }
+
+    await displayStockStatus(stocks);
   } catch (e) {
     errorsInLastHour++;
-    await writeProgress(`Unexpected error: [${e.name}] ${e.message}`, {
-      start: true,
-      end: true,
-      level: 'error',
-    });
+    await printProgress(`Unexpected error: [${e.name}] ${e.message}`, { level: 'error' });
 
     // Schedule the next check
     await scheduleRecheck();
@@ -96,13 +122,9 @@ async function checkStockAndNotifyRecipients() {
   await saveStockMap(lastStockResult);
 
   // Send out messages
-  const currencyFormatter = new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  await writeProgress(`Sending ${recipientMessages.length} messages... `, { start: true });
-  const cost = await notifyRecipients(recipients, recipientMessages);
-  await writeProgress(`done! (total cost $${currencyFormatter.format(cost)})`, { end: true });
+  if (recipientMessages.length > 0) {
+    await notifyRecipients(recipients, recipientMessages);
+  }
 
   // Schedule the next check
   await scheduleRecheck();
@@ -115,6 +137,12 @@ async function checkErrorsInLastHour() {
   );
 
   if (errorsInLastHour > 0) {
+    await printProgress(
+      `Sending alert notification as there ${
+        errorsInLastHour === 1 ? 'has' : 'have'
+      } been ${errorsInLastHour} ${errorsInLastHour === 1 ? 'error' : 'errors'} in the last hour`,
+      { level: 'warning' }
+    );
     await notifyRecipients(
       recipients,
       admins.map((admin) => ({
