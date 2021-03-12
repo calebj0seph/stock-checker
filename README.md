@@ -30,6 +30,6 @@ stock. Sends notifications when items come back in stock via SMS using Twilio.
      last known stock state. This prevents sending duplicate messages when a
      product comes back in stock.
 
-## Licence
-`stock-checker` is provided under the terms of the MIT Licence. See the
-[LICENCE](LICENCE) file for details.
+## License
+`stock-checker` is provided under the terms of the MIT License. See the
+[LICENSE](LICENSE) file for details.
