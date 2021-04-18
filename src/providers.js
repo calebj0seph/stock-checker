@@ -98,6 +98,23 @@ const PROVIDERS = {
       return errorStockCheckResult('Checkout buttons missing');
     },
   },
+  BPC_TECH: {
+    name: 'BPC Tech',
+    baseUrl: 'https://www.bpctech.com.au/',
+    parse: (html) => {
+      const root = parse(html);
+      const productStockStatus = root.querySelectorAll('.productStockStatus');
+      if (productStockStatus.length === 0) {
+        return errorStockCheckResult('Product stock status missing');
+      }
+      if (productStockStatus.length > 1) {
+        return errorStockCheckResult('Multiple product stock statuses found');
+      }
+      return productStockStatus[0].classList.contains('stockInBPCT')
+        ? inStockCheckResult()
+        : outOfStockCheckResult();
+    },
+  },
 };
 
 const getProductUrl = (product) =>
